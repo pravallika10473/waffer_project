@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import cv2
+from sklearn.preprocessing import LabelEncoder
 
 def load_data(file_path):
     """
@@ -10,17 +11,26 @@ def load_data(file_path):
 
 def resize_wafer_map(wafer_map, target_size=(32, 32)):
     """
-    Resize the wafer map to the target size using cubic interpolation.
+    Resize the wafer map to the target size using cubic interpolation and normalize to [-1, 1].
     """
     wafer_map_array = np.array(wafer_map)
     resized_wafer_map = cv2.resize(wafer_map_array, target_size, interpolation=cv2.INTER_CUBIC)
-    return resized_wafer_map
+    normalized_wafer_map = (resized_wafer_map / 127.5) - 1  # Normalize to [-1, 1]
+    return normalized_wafer_map
 
 def find_dim(wafer_map):
     """
     Find the dimensions of the wafer map.
     """
     return wafer_map.shape
+
+def create_label_list(failure_type, mapping):
+    """
+    Create a one-hot encoded list for the failure type.
+    """
+    label = [0] * mapping
+    label[failure_type] = 1
+    return label
 
 def preprocess_data(data):
     # Drop unnecessary columns
@@ -31,21 +41,24 @@ def preprocess_data(data):
     mapping_type = {'Center': 0, 'Donut': 1, 'Edge-Loc': 2, 'Edge-Ring': 3, 'Loc': 4,
                     'Random': 5, 'Scratch': 6, 'Near-full': 7}
     mapping_traintest = {'Training': 1, 'Test': 2}
+    
+    # Drop rows with failure types not in the mapping
+    data = data[data['failureType'].isin(mapping_type.keys())]
 
-    # Drop data with failure types that are 'none' or '[0 0]'
-    data = data[~data['failureType'].isin(['none', '[0 0]'])]
-    
-    # Convert numpy arrays to strings if present
-    data['failureType'] = data['failureType'].apply(lambda x: str(x) if isinstance(x, np.ndarray) else x)
-    data['trainTestLabel'] = data['trainTestLabel'].apply(lambda x: str(x) if isinstance(x, np.ndarray) else x)
-    
-    # Now apply the mapping
+    # Apply the mapping for failureType and trainTestLabel
     data['failureType'] = data['failureType'].map(mapping_type)
     data['trainTestLabel'] = data['trainTestLabel'].map(mapping_traintest)
 
-    # Resize wafer maps and add dimension column
+    # Resize and normalize wafer maps
     data['waferMap'] = data['waferMap'].apply(resize_wafer_map)
 
+    # Create one-hot encoded list for failureType
+    num_classes = len(mapping_type)
+    data['failureType_list'] = data['failureType'].apply(lambda x: create_label_list(x, num_classes))
+    
+    # Drop the original failureType column
+    data = data.drop(columns=['failureType'])
+    
     return data
 
 def save_data(data, file_path):
@@ -85,11 +98,11 @@ if __name__ == "__main__":
 
     # Add print statements to show the distribution of failure types in each set
     print("\nDistribution of failure types in training data:")
-    print(training_data['failureType'].value_counts())
+    print(training_data['failureType_list'].apply(lambda x: x.index(1)).value_counts())
     print("\nDistribution of failure types in testing data:")
-    print(testing_data['failureType'].value_counts())
+    print(testing_data['failureType_list'].apply(lambda x: x.index(1)).value_counts())
 
-    #drop the trainTestLabel column
+    # Drop the trainTestLabel column
     training_data = training_data.drop(columns=['trainTestLabel'])
     testing_data = testing_data.drop(columns=['trainTestLabel'])
 
@@ -101,3 +114,20 @@ if __name__ == "__main__":
     save_data(training_data, "/scratch/general/vast/u1475870/wafer_project/data/WM811K_training.pkl")
     save_data(testing_data, "/scratch/general/vast/u1475870/wafer_project/data/WM811K_testing.pkl")
 
+    # Print the shape of waferMap and failureType_list columns
+    print("\nShape of waferMap:")
+    print(preprocessed_df['waferMap'].iloc[0].shape)
+    print("\nShape of failureType_list:")
+    print(len(preprocessed_df['failureType_list'].iloc[0]))
+
+    # Print the number of classes in failureType_list
+    print("\nNumber of classes in failureType_list:")
+    print(len(preprocessed_df['failureType_list'].iloc[0])) 
+
+    # Print the number of samples in each class
+    print("\nNumber of samples in each class:")
+    print(preprocessed_df['failureType_list'].apply(lambda x: x.index(1)).value_counts())
+
+    # Print the head of the training dataframe
+    print("\nHead of the training dataframe:")
+    print(training_data.head())

@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --account=yqu-gpu-np
 #SBATCH --partition=yqu-gpu-np
-#SBATCH --job-name=wafer_cnn_job
+#SBATCH --job-name=wafer_data_preprocessing_job
 #SBATCH --time=12:00:00
 #SBATCH --ntasks=8
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
-#SBATCH --output=/scratch/general/vast/u1475870/wafer_project/logs/%j/%j_cnn.out
-#SBATCH --error=/scratch/general/vast/u1475870/wafer_project/logs/%j/%j_cnn.err
+#SBATCH --output=/scratch/general/vast/u1475870/wafer_project/logs/%j/%j_data_preprocessing.out
+#SBATCH --error=/scratch/general/vast/u1475870/wafer_project/logs/%j/%j_data_preprocessing.err
 #SBATCH --mail-user=pravallikaslurm@gmail.com
 #SBATCH --mail-type=END,FAIL
 
@@ -24,7 +24,7 @@ echo "Log directory: $LOG_DIR"
 cd $SCRATCH_DIR
 
 # Copy the script and any necessary data from home to scratch
-cp /uufs/chpc.utah.edu/common/home/$USER/wafer_project/cnn.py .
+cp /uufs/chpc.utah.edu/common/home/$USER/wafer_project/data_preprocessing.py .
 
 # Ensure Conda is initialized and in the PATH
 export PATH="/uufs/chpc.utah.edu/common/home/$USER/miniconda3/bin:$PATH"
@@ -54,14 +54,13 @@ else
 fi
 
 # Run your Python script
-python cnn.py > $LOG_DIR/cnn_output.txt 2>&1
+python data_preprocessing.py > $LOG_DIR/data_preprocessing_output.txt 2>&1
 
 # Deactivate the Conda environment
 conda deactivate
 
 # Copy results back to the home directory
-cp $SCRATCH_DIR/outputs/wafer_cnn_model.pth /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/
-cp $LOG_DIR/cnn_output.txt /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/
+cp $LOG_DIR/data_preprocessing_output.txt /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/
 cp $LOG_DIR/gpu_info.txt /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/
 
 echo "Job finished on $(date)"

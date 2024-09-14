@@ -29,13 +29,13 @@ CLASS_NAMES = {
     2: "Edge-Loc",
     3: "Edge-Ring",
     4: "Loc",
-    5: "Near-full",
-    6: "Random",
-    7: "Scratch"
+    5: "Random",
+    6: "Scratch",
+    7: "Near-full"
 }
 
 class WaferDataset(Dataset):
-    def __init__(self, wafer_maps: pd.Series, labels: pd.Series):
+    def __init__(self, wafer_maps, labels):
         self.wafer_maps = wafer_maps
         self.labels = labels
     
@@ -43,40 +43,39 @@ class WaferDataset(Dataset):
         return len(self.labels)
     
     def __getitem__(self, idx):
-        wafer_map = np.array(self.wafer_maps.iloc[idx]).reshape(32, 32)
+        wafer_map = self.wafer_maps[idx]
         wafer_map = torch.tensor(wafer_map, dtype=torch.float32).unsqueeze(0)
-        label = torch.tensor(int(self.labels.iloc[idx]), dtype=torch.long)
+        label = torch.tensor(self.labels[idx], dtype=torch.long)
         return wafer_map, label
 
 class WaferCNN(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes):
         super(WaferCNN, self).__init__()
         
         self.features = nn.Sequential(
-            # Input: 1 x 32 x 32 (grayscale)
-            nn.Conv2d(1, 64, kernel_size=5, stride=1, padding=2),  # First conv layer
+            nn.Conv2d(1, 64, kernel_size=5, stride=1, padding=2),
             nn.LeakyReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Output: 64 x 16 x 16
+            nn.MaxPool2d(kernel_size=2, stride=2),
             
-            nn.Conv2d(64, 128, kernel_size=5, stride=1, padding=2),  # Second conv layer
+            nn.Conv2d(64, 128, kernel_size=5, stride=1, padding=2),
             nn.LeakyReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2)   # Output: 128 x 8 x 8
+            nn.MaxPool2d(kernel_size=2, stride=2)
         )
         
         self.classifier = nn.Sequential(
-            nn.Linear(128 * 8 * 8, 1024),  # First fully connected layer
+            nn.Linear(128 * 8 * 8, 1024),
             nn.LeakyReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(1024, 512),  # Second fully connected layer
+            nn.Linear(1024, 512),
             nn.LeakyReLU(inplace=True),
-            nn.Linear(512, 9)  # Output layer (8 classes + 1 normal class)
+            nn.Linear(512, num_classes)
         )
         
     def forward(self, x):
         x = self.features(x)
-        x = x.view(x.size(0), -1)  # Flatten the output from conv layers
+        x = x.view(x.size(0), -1)
         x = self.classifier(x)
-        return torch.softmax(x, dim=1)  # Use softmax for multi-class classification
+        return torch.softmax(x, dim=1)
 
 def prepare_data(X_train, y_train, X_test, y_test):
     train_dataset = WaferDataset(X_train, y_train)
@@ -120,7 +119,6 @@ def evaluate_model(model, test_loader, device):
     class_accuracies = cm.diagonal() / cm.sum(axis=1)
     overall_accuracy = np.sum(cm.diagonal()) / np.sum(cm)
 
-    # Create a dictionary of class accuracies with class names
     class_accuracies_dict = {CLASS_NAMES.get(i, f"Unknown-{i}"): acc for i, acc in enumerate(class_accuracies)}
 
     return overall_accuracy, class_accuracies_dict
@@ -132,8 +130,7 @@ def print_accuracies(overall_accuracy, class_accuracies, epoch=None):
         print(f"Final Overall Test Accuracy: {overall_accuracy:.4f}")
     
     print("Class Accuracies:")
-    for i, acc in enumerate(class_accuracies):
-        class_name = CLASS_NAMES.get(i, f"Unknown-{i}")
+    for class_name, acc in class_accuracies.items():
         print(f"{class_name}: {acc:.4f}")
     print()
 
@@ -147,16 +144,17 @@ os.makedirs(output_dir, exist_ok=True)
 train_df = pd.read_pickle('/scratch/general/vast/u1475870/wafer_project/data/WM811K_training.pkl')  
 test_df = pd.read_pickle('/scratch/general/vast/u1475870/wafer_project/data/WM811K_testing.pkl')  
 
-X_train = train_df["waferMap"]
-y_train = train_df["failureType"]
-X_test = test_df["waferMap"]
-y_test = test_df["failureType"]
+X_train = train_df["waferMap"].tolist()
+y_train = train_df["failureType_list"].apply(lambda x: x.index(1)).tolist()
+X_test = test_df["waferMap"].tolist()
+y_test = test_df["failureType_list"].apply(lambda x: x.index(1)).tolist()
 
 train_loader, test_loader = prepare_data(X_train, y_train, X_test, y_test)
 
+num_classes = len(CLASS_NAMES)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
-model = WaferCNN().to(device)
+model = WaferCNN(num_classes).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
@@ -171,7 +169,7 @@ for epoch in range(NUM_EPOCHS):
     
     print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {train_loss:.4f}")
     print(f"Epoch duration: {epoch_duration:.2f} seconds")
-    print_accuracies(overall_accuracy, class_accuracies.values(), epoch)
+    print_accuracies(overall_accuracy, class_accuracies, epoch)
 
 # After the training loop
 end_time = time.time()
