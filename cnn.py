@@ -15,8 +15,8 @@ if torch.cuda.is_available():
     print(f"GPU name: {torch.cuda.get_device_name(0)}")
 
 # Hyperparameters
-BATCH_SIZE = 64
-LEARNING_RATE = 0.0001
+BATCH_SIZE = 128
+LEARNING_RATE = 0.00005
 NUM_EPOCHS = 50
 RANDOM_SEED = 42
 
@@ -31,7 +31,8 @@ CLASS_NAMES = {
     4: "Loc",
     5: "Random",
     6: "Scratch",
-    7: "Near-full"
+    7: "Near-full",
+    8: "none"
 }
 
 class WaferDataset(Dataset):
@@ -53,29 +54,24 @@ class WaferCNN(nn.Module):
         super(WaferCNN, self).__init__()
         
         self.features = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=5, stride=1, padding=2),
-            nn.LeakyReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            
-            nn.Conv2d(64, 128, kernel_size=5, stride=1, padding=2),
-            nn.LeakyReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2)
+            nn.Conv2d(1, 64, kernel_size=3, stride=2, padding=1),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+            nn.LeakyReLU(0.1),
+            nn.BatchNorm2d(128),
+            nn.Flatten()
         )
         
         self.classifier = nn.Sequential(
             nn.Linear(128 * 8 * 8, 1024),
-            nn.LeakyReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(1024, 512),
-            nn.LeakyReLU(inplace=True),
-            nn.Linear(512, num_classes)
+            nn.LeakyReLU(0.1),
+            nn.Linear(1024, num_classes)
         )
-        
+    
     def forward(self, x):
         x = self.features(x)
-        x = x.view(x.size(0), -1)
         x = self.classifier(x)
-        return torch.softmax(x, dim=1)
+        return x
 
 def prepare_data(X_train, y_train, X_test, y_test):
     train_dataset = WaferDataset(X_train, y_train)
@@ -145,9 +141,9 @@ train_df = pd.read_pickle('/scratch/general/vast/u1475870/wafer_project/data/WM8
 test_df = pd.read_pickle('/scratch/general/vast/u1475870/wafer_project/data/WM811K_testing.pkl')  
 
 X_train = train_df["waferMap"].tolist()
-y_train = train_df["failureType_list"].apply(lambda x: x.index(1)).tolist()
+y_train = train_df["failureType"].tolist()
 X_test = test_df["waferMap"].tolist()
-y_test = test_df["failureType_list"].apply(lambda x: x.index(1)).tolist()
+y_test = test_df["failureType"].tolist()
 
 train_loader, test_loader = prepare_data(X_train, y_train, X_test, y_test)
 

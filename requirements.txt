@@ -3,3 +3,8 @@ numpy
 opencv-python-headless
 torch
 scikit-learn
+matplotlib
+tqdm
+imageio
+tensorflow
+git+https://github.com/tensorflow/docs
