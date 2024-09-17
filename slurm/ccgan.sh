@@ -62,7 +62,7 @@ conda deactivate
 # Copy results back to the home directory
 cp $SCRATCH_DIR/output/ccgan_generator.pth /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/
 cp $SCRATCH_DIR/output/ccgan_discriminator.pth /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/
-cp $SCRATCH_DIR/output/ccgan_images /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/ccgan_images
+cp $SCRATCH_DIR/output/final_images /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/ccgan_images
 cp $LOG_DIR/ccgan_output.txt /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/
 cp $LOG_DIR/gpu_info.txt /uufs/chpc.utah.edu/common/home/$USER/wafer_project/outputs/
 
